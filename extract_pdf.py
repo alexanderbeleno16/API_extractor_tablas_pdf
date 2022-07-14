@@ -6,7 +6,7 @@
 # pip install Flask-Cors==1.1.2
 # pip install tabulate              installed
 # pip install tabula-py             installed
-#   pip install googletrans         (Insalar en el servidor contabo) 08-07-2022...
+#   pip install googletrans         (Insalar en el servidor contabo) 14-07-2022...
 
 from flask import Flask, request, jsonify
 from flask_mysqldb import MySQL
