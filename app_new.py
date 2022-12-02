@@ -315,6 +315,10 @@ def validarColumnasTabulaEstado(path_archivo, json_post, opcion=1, opc_stream=Fa
     print("Tiempo de fin: {}".format(datetime.datetime.now().strftime("%X")) + "\n") 
     
     if rstInsert['status']:
+        respuesta = {
+            "status":rstInsert['status'],
+            "msg":rstInsert['msg']
+        }  
         print('\nSe actualizan las imagenes de estado a scad 11 (digitadas)...')
         respActualizarImgEstado = actualizarImagenesEstadoScadDigitadas(json_post)
         if respActualizarImgEstado['rowcount']>0:
