@@ -196,11 +196,11 @@ def insertar_texto_estado(data, json_post):
             query += ")"
         
         
-        rstInsert = cur.execute(query)
+        cur.execute(query)
         mysql.connection.commit() 
         
         
-        if rstInsert:
+        if cur.rowcount>0:
             status=True
             cnt_insertados=cnt_insertados+1
         else:
@@ -219,7 +219,8 @@ def insertar_texto_estado(data, json_post):
         "cnt_insertados":cnt_insertados,
         "cnt_no_insertados":cnt_no_insertados,
         "lista_enlaces_providencia":lista_enlaces_providencia,
-        "msg":"Cantidad insertados: " + str(cnt_insertados) + " | Cantidad No insertados: " + str(cnt_no_insertados) + " | Cantidad Total registros: "+str(total_registros)
+        # "msg":"Cantidad insertados: " + str(cnt_insertados) + " | Cantidad No insertados: " + str(cnt_no_insertados) + " | Cantidad Total registros: "+str(total_registros)
+        "msg":"Cantidad Total registros encontrados: " + str(total_registros) + "\n - Cant. insertados: " + str(cnt_insertados) + "\n - Cant. No insertados: " + str(cnt_no_insertados) 
     }        
         
     return respuesta
@@ -260,7 +261,7 @@ def actualizarImagenesEstadoScadDigitadas(json_post):
     cur.execute(query)
     mysql.connection.commit()
     
-    return jsonify({"rowcount":cur.rowcount})   
+    return cur.rowcount  
 
 
 def insertarImgenesEstadoRevisado(json_post):
@@ -283,13 +284,13 @@ def insertarImgenesEstadoRevisado(json_post):
     query += "AND imagenes_entidad          = '"+json_post['ent_imagen']+"' "
     query += "AND imagenes_especialidad     = '"+json_post['esp_imagen']+"' "
     query += "AND imagenes_despacho         = '"+json_post['desp_imagen']+"' "
-    query += "AND imagenes_operador = '"+json_post['ced_usuario']+"' "
+    query += "AND imagenes_operador         = '"+json_post['ced_usuario']+"' "
     query += "AND imagenes_fecha_grabacion = CURDATE() "
     
     cur.execute(query)
     mysql.connection.commit() 
     
-    return jsonify({"rowcount":cur.rowcount})   
+    return cur.rowcount
     
 
 
@@ -319,12 +320,13 @@ def validarColumnasTabulaEstado(path_archivo, json_post, opcion=1, opc_stream=Fa
             "status":rstInsert['status'],
             "msg":rstInsert['msg']
         }  
-        print('\nSe actualizan las imagenes de estado a scad 11 (digitadas)...')
+        print('\nSe inicia la actualizacion de las imagenes de estado a scad 11 (digitadas)...')
         respActualizarImgEstado = actualizarImagenesEstadoScadDigitadas(json_post)
-        if respActualizarImgEstado['rowcount']>0:
+        if respActualizarImgEstado>0:
+            print('\nImagenes de estado digitadas...')
             respInsertImgEstadoRevisado = insertarImgenesEstadoRevisado(json_post)
             
-            if respInsertImgEstadoRevisado['rowcount']==0:
+            if respInsertImgEstadoRevisado==0:
                 respuesta = {
                     "status":False,
                     "msg":"Error, no se insertaron las imagenes de estado a la tabla de revisado - insertarImgenesEstadoRevisado()"
@@ -393,14 +395,14 @@ def armar_data_fijaciones(dataframe, formato):
             if isfloat(key[0]) and isint(key[0]):              
                 data.append(key)       
             
-        elif formato=="2":  
-            if key[4]!="" and key[4]!=None and key[5]!="" and key[4]!=None:                 
-                key[4] = convertidor_string_fecha(key[4])                      
-                key[5] = convertidor_string_fecha(key[5])                      
-                data.append(key) 
-            else:
-                print("Ocurrió un error en el formato #2 de Fijaciones, la columna de fecha esta vacia")
-                exit()
+        # elif formato=="2":  
+        #     if key[4]!="" and key[4]!=None and key[5]!="" and key[4]!=None:                 
+        #         key[4] = convertidor_string_fecha(key[4])                      
+        #         key[5] = convertidor_string_fecha(key[5])                      
+        #         data.append(key) 
+        #     else:
+        #         print("Ocurrió un error en el formato #2 de Fijaciones, la columna de fecha esta vacia")
+        #         exit()
             
     return data
 
@@ -416,11 +418,11 @@ def insertar_data_fijaciones(data, json_post, formato):
     
     cur = mysql.connection.cursor()
     for registros_aux in data:  
+        indice=0
         total_registros=total_registros+1
         
-        indice=0
-        if (formato=="1"):
-            indice+=1
+        # if (formato=="1"):
+        indice+=1
 
         radicacion          = str(registros_aux[indice]).replace("'",'').replace('"','').replace("´",'').replace('\\','').replace(',','').replace("\n", " ").replace("\r", " ");indice+=1
         clase_proceso       = str(registros_aux[indice]).replace("'",'').replace('"','').replace("´",'').replace('\\','').replace(',','').replace("\n", " ").replace("\r", " ");indice+=1
@@ -571,7 +573,8 @@ def insertar_data_fijaciones(data, json_post, formato):
         "cnt_insertados":cnt_insertados,
         "cnt_no_insertados":cnt_no_insertados,
         "cnt_total_registros":total_registros,
-        "msg":"Cantidad insertados: " + str(cnt_insertados) + " | Cantidad No insertados: " + str(cnt_no_insertados) + " | Cantidad Total registros encontrados: "+str(total_registros)
+        # "msg":"Cantidad insertados: " + str(cnt_insertados) + " | Cantidad No insertados: " + str(cnt_no_insertados) + " | Cantidad Total registros encontrados: "+str(total_registros)
+        "msg":"Cantidad Total registros encontrados: " + str(total_registros) + "\n - Cant. insertados: " + str(cnt_insertados) + "\n - Cant. No insertados: " + str(cnt_no_insertados) 
     }        
         
     return respuesta
@@ -584,11 +587,13 @@ def validarColumnasTabulaFijacion(path_archivo, json_post, opcion=1):
     else:
         dataframe  = read_pdf("../../../.."+path_archivo, pages="all", stream=False, lattice=True, output_format="dataframe")   
         
-    formato    = obtieneTipoFormatoFijacion(dataframe) #type<Dataframe>  
-    data       = armar_data_fijaciones(dataframe, formato)    #type<Array>    
+    # formato    = obtieneTipoFormatoFijacion(dataframe) #type<Dataframe>  
+    # data       = armar_data_fijaciones(dataframe, formato)    #type<Array>    
+    data       = armar_data_fijaciones(dataframe)    #type<Array>    
     print('\nSe empieza a insertar los datos a la Base de datos...')
     print("Tiempo de inicio: {}".format(datetime.datetime.now().strftime("%X")))
-    rstInsert   = insertar_data_fijaciones(data, json_post, formato)
+    rstInsert   = insertar_data_fijaciones(data, json_post)
+    # rstInsert   = insertar_data_fijaciones(data, json_post, formato)
     status  =rstInsert['status']    
     msg     =rstInsert['msg'] 
     print('\nTermina inserccion... \n' + msg)
@@ -638,7 +643,7 @@ def getextraerestado_json():
     if request.method == 'POST':  
         #DATA RECIBIDA
         path_archivo        = request.json['path_pdf']   
-        if ( re.search("^pdf*", path_archivo) or re.search("^PDF*", path_archivo) ):
+        if ( path_archivo ):
             #VALIDACION No.1
             try:           
                 resValidaRead = validarColumnasTabulaEstado(path_archivo, request.json, 1)    
