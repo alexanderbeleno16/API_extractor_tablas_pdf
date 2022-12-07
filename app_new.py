@@ -328,7 +328,7 @@ def validarColumnasTabulaEstado(path_archivo, json_post, opcion=1, opc_stream=Fa
                     "status":rstInsert['status'],
                     "statusImgDigitada":True,
                     "statusImgRevisado":False,
-                    "msg":"Error, no se insertaron las imagenes de estado a la tabla de revisado - insertarImgenesEstadoRevisado()"
+                    "msg":str(rstInsert['msg'])+"\nError, no se insertaron las imagenes de estado a la tabla de revisado - insertarImgenesEstadoRevisado()"
                 }
                 print( respuesta["msg"] )
                 
@@ -337,7 +337,7 @@ def validarColumnasTabulaEstado(path_archivo, json_post, opcion=1, opc_stream=Fa
                 "status":rstInsert['status'],
                 "statusImgDigitada":False,
                 "statusImgRevisado":False,
-                "msg":"Error, no se actualizó ninguna imagen de estado - actualizarImagenesEstadoScadDigitadas()"
+                "msg": str(rstInsert['msg'])+"\nError, no se actualizó ninguna imagen de estado - actualizarImagenesEstadoScadDigitadas()"
             }
             print( respuesta["msg"] )
             
@@ -438,7 +438,7 @@ def insertar_texto_fijacion(data, json_post):
         tipo_traslado       = str(registros_aux[indice]).replace("'",'').replace('"','').replace("´",'').replace('\\','').replace(',','').replace("\n", " ").replace("\r", " ");
         
         
-        if len(radicacion)==11 and re.findall(r"-", radicacion):
+        if len(radicacion)==11 or re.findall(r"([0-9][0-9][0-9][0-9]-)", radicacion):
             if fecha_inicio!="" and fecha_inicio!=None and fecha_vencimiento!="" and fecha_vencimiento!=None:                 
                 fecha_inicio      = convertidor_string_fecha(fecha_inicio)                      
                 fecha_vencimiento = convertidor_string_fecha(fecha_vencimiento) 
@@ -690,7 +690,7 @@ def validarColumnasTabulaFijacion(path_archivo, json_post, opcion=1, opc_stream=
                     "status":rstInsert['status'],
                     "statusImgDigitada":True,
                     "statusImgRevisado":False,
-                    "msg":"Error, no se insertaron las imagenes de fijacion a la tabla de revisado - insertarImgenesFijacionRevisado()"
+                    "msg":str(rstInsert['msg'])+"\nError, no se insertaron las imagenes de fijacion a la tabla de revisado - insertarImgenesFijacionRevisado()"
                 }
                 print( respuesta["msg"] )
                 
@@ -699,7 +699,7 @@ def validarColumnasTabulaFijacion(path_archivo, json_post, opcion=1, opc_stream=
                 "status":rstInsert['status'],
                 "statusImgDigitada":False,
                 "statusImgRevisado":False,
-                "msg":"Error, no se actualizó ninguna imagen de fijacion - actualizarImagenesFijacionesScadDigitadas()"
+                "msg":str(rstInsert['msg'])+"\nError, no se actualizó ninguna imagen de fijacion - actualizarImagenesFijacionesScadDigitadas()"
             }
             print( respuesta["msg"] )
         
@@ -755,51 +755,57 @@ def getextraerestado_json():
     if request.method == 'POST':  
         #DATA RECIBIDA
         path_archivo        = request.json['path_pdf']   
+        entidad             = request.json['ent_imagen']   
+        especialidad        = request.json['esp_imagen']     
         if ( path_archivo ):
-            #VALIDACION No.1
-            try:           
-                resValidaRead = validarColumnasTabulaEstado(path_archivo, request.json, 1)    
-                status  = resValidaRead["status"]
-                msg     = resValidaRead["msg"] 
-            except (FileNotFoundError , tabula.errors.CSVParseError) as error:
-                status    = False 
-                msg       = f'Error interno ESTADO (1): {error}'
-                
-                
-            #VALIDACION No.2
-            if status==False: 
-                try:
-                    resValidaRead = validarColumnasTabulaEstado(path_archivo, request.json, 2)   
+            if (entidad=="95" and especialidad=="01"):                
+                #VALIDACION No.1
+                try:           
+                    resValidaRead = validarColumnasTabulaEstado(path_archivo, request.json, 1)    
                     status  = resValidaRead["status"]
-                    msg     = resValidaRead["msg"]  
+                    msg     = resValidaRead["msg"] 
                 except (FileNotFoundError , tabula.errors.CSVParseError) as error:
                     status    = False 
-                    msg       = f'Error interno ESTADO (2): {error}'
+                    msg       = f'Error interno ESTADO (1): {error}'
                     
                     
-                #VALIDACION No.3
+                #VALIDACION No.2
                 if status==False: 
-                    opc_stream =True
-                    opc_lattice=False
                     try:
-                        resValidaRead = validarColumnasTabulaEstado(path_archivo, request.json, 1, opc_stream, opc_lattice)   
+                        resValidaRead = validarColumnasTabulaEstado(path_archivo, request.json, 2)   
                         status  = resValidaRead["status"]
                         msg     = resValidaRead["msg"]  
                     except (FileNotFoundError , tabula.errors.CSVParseError) as error:
                         status    = False 
-                        msg       = f'Error interno ESTADO (3): {error}'
-                       
+                        msg       = f'Error interno ESTADO (2): {error}'
                         
-                    #VALIDACION No.4
+                        
+                    #VALIDACION No.3
                     if status==False: 
+                        opc_stream =True
+                        opc_lattice=False
                         try:
-                            resValidaRead = validarColumnasTabulaEstado(path_archivo, request.json, 2, opc_stream, opc_lattice)   
+                            resValidaRead = validarColumnasTabulaEstado(path_archivo, request.json, 1, opc_stream, opc_lattice)   
                             status  = resValidaRead["status"]
                             msg     = resValidaRead["msg"]  
                         except (FileNotFoundError , tabula.errors.CSVParseError) as error:
                             status    = False 
-                            msg       = f'Error interno ESTADO (4): {error}'
+                            msg       = f'Error interno ESTADO (3): {error}'
+                        
+                            
+                        #VALIDACION No.4
+                        if status==False: 
+                            try:
+                                resValidaRead = validarColumnasTabulaEstado(path_archivo, request.json, 2, opc_stream, opc_lattice)   
+                                status  = resValidaRead["status"]
+                                msg     = resValidaRead["msg"]  
+                            except (FileNotFoundError , tabula.errors.CSVParseError) as error:
+                                status    = False 
+                                msg       = f'Error interno ESTADO (4): {error}'
 
+            else:
+                status    = False 
+                msg       = 'Error, solo se puede extraer textos a las SIC...'
         else:
             status    = False 
             msg       = 'Error de parametros, la API no recibió el archivo .PDF'
@@ -821,52 +827,58 @@ def getextraerfijacion_json():
     if request.method == 'POST':
         #DATA RECIBIDA
         path_archivo        = request.json['path_pdf']   
+        entidad             = request.json['ent_imagen']   
+        especialidad        = request.json['esp_imagen']     
         # print( path_archivo ) 
         if ( path_archivo ):
-            #VALIDACION No.1
-            try:           
-                resValidaRead = validarColumnasTabulaFijacion(path_archivo, request.json, 1)    
-                status  = resValidaRead["status"]
-                msg     = resValidaRead["msg"] 
-            except (FileNotFoundError , tabula.errors.CSVParseError) as error:
-                status    = False 
-                msg       = f'Error interno FIJACION (1): {error}'
-                
-                
-            #VALIDACION No.2
-            if status==False: 
-                try:
-                    resValidaRead = validarColumnasTabulaFijacion(path_archivo, request.json, 2)   
+            if (entidad=="95" and especialidad=="01"):   
+                #VALIDACION No.1
+                try:           
+                    resValidaRead = validarColumnasTabulaFijacion(path_archivo, request.json, 1)    
                     status  = resValidaRead["status"]
-                    msg     = resValidaRead["msg"]  
+                    msg     = resValidaRead["msg"] 
                 except (FileNotFoundError , tabula.errors.CSVParseError) as error:
                     status    = False 
-                    msg       = f'Error interno FIJACION (2): {error}'
+                    msg       = f'Error interno FIJACION (1): {error}'
                     
                     
-                #VALIDACION No.3
+                #VALIDACION No.2
                 if status==False: 
-                    opc_stream =True
-                    opc_lattice=False
                     try:
-                        resValidaRead = validarColumnasTabulaFijacion(path_archivo, request.json, 1, opc_stream, opc_lattice)   
+                        resValidaRead = validarColumnasTabulaFijacion(path_archivo, request.json, 2)   
                         status  = resValidaRead["status"]
                         msg     = resValidaRead["msg"]  
                     except (FileNotFoundError , tabula.errors.CSVParseError) as error:
                         status    = False 
-                        msg       = f'Error interno FIJACION (3): {error}'
-                       
+                        msg       = f'Error interno FIJACION (2): {error}'
                         
-                    #VALIDACION No.4
+                        
+                    #VALIDACION No.3
                     if status==False: 
+                        opc_stream =True
+                        opc_lattice=False
                         try:
-                            resValidaRead = validarColumnasTabulaFijacion(path_archivo, request.json, 2, opc_stream, opc_lattice)   
+                            resValidaRead = validarColumnasTabulaFijacion(path_archivo, request.json, 1, opc_stream, opc_lattice)   
                             status  = resValidaRead["status"]
                             msg     = resValidaRead["msg"]  
                         except (FileNotFoundError , tabula.errors.CSVParseError) as error:
                             status    = False 
-                            msg       = f'Error interno FIJACION (4): {error}'
-     
+                            msg       = f'Error interno FIJACION (3): {error}'
+                        
+                            
+                        #VALIDACION No.4
+                        if status==False: 
+                            try:
+                                resValidaRead = validarColumnasTabulaFijacion(path_archivo, request.json, 2, opc_stream, opc_lattice)   
+                                status  = resValidaRead["status"]
+                                msg     = resValidaRead["msg"]  
+                            except (FileNotFoundError , tabula.errors.CSVParseError) as error:
+                                status    = False 
+                                msg       = f'Error interno FIJACION (4): {error}'
+        
+            else:
+                status    = False 
+                msg       = 'Error, solo se puede extraer textos a las SIC...'
         else:
             status    = False 
             msg       = 'Error de parametros, la API no recibió el archivo .PDF'
