@@ -44,9 +44,9 @@ cors = CORS(app, resources={r"*": {"origins": "*"}})
 #------------ BASE DE DATOS ------------
 #---------------------------------------
 app.config['MYSQL_HOST']        = 'localhost' 
-app.config['MYSQL_USER']        = 'root'
-app.config['MYSQL_PASSWORD']    = ''
-app.config['MYSQL_DB']          = 'bd_lupa_prueba'
+app.config['MYSQL_USER']        = 'db_user'
+app.config['MYSQL_PASSWORD']    = 'Lupa-12312423$$**12'
+app.config['MYSQL_DB']          = 'db_lupajuridica'
 mysql = MySQL(app)
 # settings A partir de ese momento Flask utilizará esta clave para poder cifrar la información de la cookie
 app.secret_key = "mysecretkey"
@@ -219,6 +219,7 @@ def insertar_texto_estado(data, json_post):
         "cnt_insertados":cnt_insertados,
         "cnt_no_insertados":cnt_no_insertados,
         "lista_enlaces_providencia":lista_enlaces_providencia,
+        # "msg":"Cantidad insertados: " + str(cnt_insertados) + " | Cantidad No insertados: " + str(cnt_no_insertados) + " | Cantidad Total registros: "+str(total_registros)
         "msg":"Cantidad Total registros encontrados: " + str(total_registros) + "\n - Cant. insertados: " + str(cnt_insertados) + "\n - Cant. No insertados: " + str(cnt_no_insertados) 
     }        
         
@@ -229,10 +230,16 @@ def insertarArrayEnlacesEstado(id_estado, array_enlaces):
     # print( array_enlaces ) 
     
     cur = mysql.connection.cursor()
-    cur.execute('UPDATE lupa_estado SET estado_enlaces_pdf = %s WHERE id = %s', (array_enlaces, id_estado) )
+    cur.execute('UPDATE prueba_estado SET json_enlaces = %s WHERE id = %s', (array_enlaces, id_estado) )
     mysql.connection.commit()
     
-    return cur.rowcount  
+    # cur = mysql.connection.cursor()
+    # cur.execute('SELECT * FROM prueba_estado ')
+    # rv = cur.fetchall()
+    # cur.close()
+    # print( rv )
+    
+    return jsonify({"informacion":"Registro actualizado"})    
 
 
 def actualizarImagenesEstadoScadDigitadas(json_post):
@@ -290,15 +297,14 @@ def insertarImgenesEstadoRevisado(json_post):
 def validarColumnasTabulaEstado(path_archivo, json_post, opcion=1, opc_stream=False, opc_lattice=True):
     respuesta = {
         "status":True,
-        "statusImgDigitada":True,
-        "statusImgRevisado":True,
         "msg":""
     }   
+    
     if opcion==1:
-        dataframe  = read_pdf(path_archivo, pages="all", stream=opc_stream, lattice=opc_lattice, output_format="dataframe", encoding='latin1') 
+        dataframe  = read_pdf("../../../.."+path_archivo, pages="all", stream=opc_stream, lattice=opc_lattice, output_format="dataframe") 
     elif opcion==2:
         columns = ["1", "2", "3", "4", "5", "6", "7", "8"]
-        dataframe  = read_pdf(path_archivo, multiple_tables=True, columns = columns, pages="all", stream=opc_stream, lattice=opc_lattice, output_format="dataframe", encoding='latin1') 
+        dataframe  = read_pdf("../../../.."+path_archivo, multiple_tables=True, columns = columns, pages="all", stream=opc_stream, lattice=opc_lattice, output_format="dataframe") 
         
     data        = armar_data_estado(dataframe)    #type<Array>    
     print('\nSe empieza a insertar los datos a la Base de datos...')
@@ -312,43 +318,31 @@ def validarColumnasTabulaEstado(path_archivo, json_post, opcion=1, opc_stream=Fa
     if rstInsert['status']:
         respuesta = {
             "status":rstInsert['status'],
-            "statusImgDigitada":True,
-            "statusImgRevisado":True,
             "msg":rstInsert['msg']
-        }   
-        print('Se inicia la actualizacion de las imagenes de estado a scad 11 (digitadas)...')
+        }  
+        print('\nSe inicia la actualizacion de las imagenes de estado a scad 11 (digitadas)...')
         respActualizarImgEstado = actualizarImagenesEstadoScadDigitadas(json_post)
         if respActualizarImgEstado>0:
-            print('Imagenes de estado digitadas...')
-            print('Se inicia la insercion de las imagenes de estado a la tabla de revisados...')
+            print('\nImagenes de estado digitadas...')
             respInsertImgEstadoRevisado = insertarImgenesEstadoRevisado(json_post)
             
-            if respInsertImgEstadoRevisado==0: 
+            if respInsertImgEstadoRevisado==0:
                 respuesta = {
-                    "status":rstInsert['status'],
-                    "statusImgDigitada":True,
-                    "statusImgRevisado":False,
+                    "status":False,
                     "msg":"Error, no se insertaron las imagenes de estado a la tabla de revisado - insertarImgenesEstadoRevisado()"
-                }
-                print( respuesta["msg"] )
+                }   
                 
         else:
             respuesta = {
-                "status":rstInsert['status'],
-                "statusImgDigitada":False,
-                "statusImgRevisado":False,
+                "status":False,
                 "msg":"Error, no se actualizó ninguna imagen de estado - actualizarImagenesEstadoScadDigitadas()"
-            }
-            print( respuesta["msg"] )
+            }   
             
     else:
         respuesta = {
             "status":False,
-            "statusImgDigitada":False,
-            "statusImgRevisado":False,
             "msg":"No se insertaron todos los registros - insertar_texto_estado()"
-        }
-        print( respuesta["msg"] )
+        }   
     
     return respuesta
     
@@ -630,7 +624,7 @@ def page_not_found(error):
 
 
 @app.route('/', methods=['GET'])
-@cross_origin(origin='localhost',headers=['Content-Type','Authorization'])
+@cross_origin(origin='localhost',headers=['Content- Type','Authorization'])
 def ruta():
     respuesta = {
         "Hora":format(datetime.datetime.now().strftime("%X")),
@@ -644,7 +638,7 @@ def ruta():
 
 # Ruta para extraer la tabla del pdf (ESTADOS) - method (POST) - JSON
 @app.route('/extraer/estado', methods=['POST'])
-@cross_origin(origin='localhost',headers=['Content-Type','Authorization'])
+@cross_origin(origin='localhost',headers=['Content- Type','Authorization'])
 def getextraerestado_json():
     if request.method == 'POST':  
         #DATA RECIBIDA
@@ -715,60 +709,23 @@ def getextraerfijacion_json():
     if request.method == 'POST':
         #DATA RECIBIDA
         path_archivo        = request.json['path_pdf']    
-        if ( path_archivo ):
+        try:    
+            resValidaRead = validarColumnasTabulaFijacion(path_archivo, request.json, 1)    
+            status  = resValidaRead["status"]
+            msg     = resValidaRead["msg"]
+        except (FileNotFoundError , tabula.errors.CSVParseError) as error:
+            status    = False 
+            msg       = f'Error interno (0) FIJACION: {error}'
             
-            #VALIDACION No.1
-            try:           
-                resValidaRead = validarColumnasTabulaFijacion(path_archivo, request.json, 1)    
+            
+        if status==False:
+            try:    
+                resValidaRead = validarColumnasTabulaFijacion(path_archivo, request.json, 2)    
                 status  = resValidaRead["status"]
-                msg     = resValidaRead["msg"] 
+                msg     = resValidaRead["msg"]
             except (FileNotFoundError , tabula.errors.CSVParseError) as error:
                 status    = False 
-                msg       = f'Error interno FIJACION (1): {error}'
-                
-                
-            #VALIDACION No.2
-            if status==False: 
-                try:
-                    resValidaRead = validarColumnasTabulaFijacion(path_archivo, request.json, 2)   
-                    status  = resValidaRead["status"]
-                    msg     = resValidaRead["msg"]  
-                except (FileNotFoundError , tabula.errors.CSVParseError) as error:
-                    status    = False 
-                    msg       = f'Error interno FIJACION (2): {error}'
-                    
-                    
-                #VALIDACION No.3
-                if status==False: 
-                    opc_stream =True
-                    opc_lattice=False
-                    try:
-                        resValidaRead = validarColumnasTabulaFijacion(path_archivo, request.json, 1, opc_stream, opc_lattice)   
-                        status  = resValidaRead["status"]
-                        msg     = resValidaRead["msg"]  
-                    except (FileNotFoundError , tabula.errors.CSVParseError) as error:
-                        status    = False 
-                        msg       = f'Error interno FIJACION (3): {error}'
-                       
-                        
-                    #VALIDACION No.4
-                    if status==False: 
-                        try:
-                            resValidaRead = validarColumnasTabulaFijacion(path_archivo, request.json, 2, opc_stream, opc_lattice)   
-                            status  = resValidaRead["status"]
-                            msg     = resValidaRead["msg"]  
-                        except (FileNotFoundError , tabula.errors.CSVParseError) as error:
-                            status    = False 
-                            msg       = f'Error interno FIJACION (4): {error}'
-
-                
-                
-            
-            
-        else:
-            status    = False 
-            msg       = 'Error de parametros, la API no recibió el archivo .PDF'
-              
+                msg       = f'Error interno (1) FIJACION: {error}'
     else:
         status    = False 
         msg       = 'Error, el request es invalido'

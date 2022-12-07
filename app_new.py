@@ -44,9 +44,9 @@ cors = CORS(app, resources={r"*": {"origins": "*"}})
 #------------ BASE DE DATOS ------------
 #---------------------------------------
 app.config['MYSQL_HOST']        = 'localhost' 
-app.config['MYSQL_USER']        = 'db_user'
-app.config['MYSQL_PASSWORD']    = 'Lupa-12312423$$**12'
-app.config['MYSQL_DB']          = 'db_lupajuridica'
+app.config['MYSQL_USER']        = 'root'
+app.config['MYSQL_PASSWORD']    = ''
+app.config['MYSQL_DB']          = 'extractordatapdf'
 mysql = MySQL(app)
 # settings A partir de ese momento Flask utilizará esta clave para poder cifrar la información de la cookie
 app.secret_key = "mysecretkey"
@@ -219,7 +219,6 @@ def insertar_texto_estado(data, json_post):
         "cnt_insertados":cnt_insertados,
         "cnt_no_insertados":cnt_no_insertados,
         "lista_enlaces_providencia":lista_enlaces_providencia,
-        # "msg":"Cantidad insertados: " + str(cnt_insertados) + " | Cantidad No insertados: " + str(cnt_no_insertados) + " | Cantidad Total registros: "+str(total_registros)
         "msg":"Cantidad Total registros encontrados: " + str(total_registros) + "\n - Cant. insertados: " + str(cnt_insertados) + "\n - Cant. No insertados: " + str(cnt_no_insertados) 
     }        
         
@@ -230,16 +229,10 @@ def insertarArrayEnlacesEstado(id_estado, array_enlaces):
     # print( array_enlaces ) 
     
     cur = mysql.connection.cursor()
-    cur.execute('UPDATE prueba_estado SET json_enlaces = %s WHERE id = %s', (array_enlaces, id_estado) )
+    cur.execute('UPDATE lupa_estado SET estado_enlaces_pdf = %s WHERE id = %s', (array_enlaces, id_estado) )
     mysql.connection.commit()
     
-    # cur = mysql.connection.cursor()
-    # cur.execute('SELECT * FROM prueba_estado ')
-    # rv = cur.fetchall()
-    # cur.close()
-    # print( rv )
-    
-    return jsonify({"informacion":"Registro actualizado"})    
+    return cur.rowcount  
 
 
 def actualizarImagenesEstadoScadDigitadas(json_post):
@@ -297,14 +290,15 @@ def insertarImgenesEstadoRevisado(json_post):
 def validarColumnasTabulaEstado(path_archivo, json_post, opcion=1, opc_stream=False, opc_lattice=True):
     respuesta = {
         "status":True,
+        "statusImgDigitada":True,
+        "statusImgRevisado":True,
         "msg":""
     }   
-    
     if opcion==1:
-        dataframe  = read_pdf("../../../.."+path_archivo, pages="all", stream=opc_stream, lattice=opc_lattice, output_format="dataframe") 
+        dataframe  = read_pdf(path_archivo, pages="all", stream=opc_stream, lattice=opc_lattice, output_format="dataframe", encoding='latin1') 
     elif opcion==2:
         columns = ["1", "2", "3", "4", "5", "6", "7", "8"]
-        dataframe  = read_pdf("../../../.."+path_archivo, multiple_tables=True, columns = columns, pages="all", stream=opc_stream, lattice=opc_lattice, output_format="dataframe") 
+        dataframe  = read_pdf(path_archivo, multiple_tables=True, columns = columns, pages="all", stream=opc_stream, lattice=opc_lattice, output_format="dataframe", encoding='latin1') 
         
     data        = armar_data_estado(dataframe)    #type<Array>    
     print('\nSe empieza a insertar los datos a la Base de datos...')
@@ -318,31 +312,43 @@ def validarColumnasTabulaEstado(path_archivo, json_post, opcion=1, opc_stream=Fa
     if rstInsert['status']:
         respuesta = {
             "status":rstInsert['status'],
+            "statusImgDigitada":True,
+            "statusImgRevisado":True,
             "msg":rstInsert['msg']
-        }  
-        print('\nSe inicia la actualizacion de las imagenes de estado a scad 11 (digitadas)...')
+        }   
+        print('Se inicia la actualizacion de las imagenes de estado a scad 11 (digitadas)...')
         respActualizarImgEstado = actualizarImagenesEstadoScadDigitadas(json_post)
         if respActualizarImgEstado>0:
-            print('\nImagenes de estado digitadas...')
+            print('Imagenes de estado digitadas...')
+            print('Se inicia la insercion de las imagenes de estado a la tabla de revisados...')
             respInsertImgEstadoRevisado = insertarImgenesEstadoRevisado(json_post)
             
-            if respInsertImgEstadoRevisado==0:
+            if respInsertImgEstadoRevisado==0: 
                 respuesta = {
-                    "status":False,
+                    "status":rstInsert['status'],
+                    "statusImgDigitada":True,
+                    "statusImgRevisado":False,
                     "msg":"Error, no se insertaron las imagenes de estado a la tabla de revisado - insertarImgenesEstadoRevisado()"
-                }   
+                }
+                print( respuesta["msg"] )
                 
         else:
             respuesta = {
-                "status":False,
+                "status":rstInsert['status'],
+                "statusImgDigitada":False,
+                "statusImgRevisado":False,
                 "msg":"Error, no se actualizó ninguna imagen de estado - actualizarImagenesEstadoScadDigitadas()"
-            }   
+            }
+            print( respuesta["msg"] )
             
     else:
         respuesta = {
             "status":False,
+            "statusImgDigitada":False,
+            "statusImgRevisado":False,
             "msg":"No se insertaron todos los registros - insertar_texto_estado()"
-        }   
+        }
+        print( respuesta["msg"] )
     
     return respuesta
     
@@ -372,7 +378,7 @@ def obtieneTipoFormatoFijacion(dataframe):
     return formato
 
 
-def armar_data_fijaciones(dataframe, formato):
+def armar_data_fijaciones(dataframe):
     # CONVERTIR DATAFRAME A LISTA
     # df_list = dataframe[0].to_numpy().tolist()    #type<List>
     
@@ -390,10 +396,9 @@ def armar_data_fijaciones(dataframe, formato):
         # if isfloat(key[0]) and isint(key[0]):            
         #     #SE ELIMINA LOS ITEMS DEL ARRAY QUE DICEN "Nan" QUE EL EXTRACTOR ENTENDIÓ "MAL"
         #     key = np.delete(key, [8,9,10,11,12,13,14,15,16,17,18,19,20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30])
-        #     data.append(key)       
-        if formato=="1":  
-            if isfloat(key[0]) and isint(key[0]):              
-                data.append(key)       
+        #     data.append(key) 
+        if isfloat(key[0]) and isint(key[0]):              
+            data.append(key)       
             
         # elif formato=="2":  
         #     if key[4]!="" and key[4]!=None and key[5]!="" and key[4]!=None:                 
@@ -407,7 +412,7 @@ def armar_data_fijaciones(dataframe, formato):
     return data
 
 
-def insertar_data_fijaciones(data, json_post, formato):
+def insertar_texto_fijacion(data, json_post):
     
     status=True
     cnt_insertados    = 0
@@ -432,29 +437,44 @@ def insertar_data_fijaciones(data, json_post, formato):
         fecha_vencimiento   = str(registros_aux[indice]).replace("'",'').replace('"','').replace("´",'').replace('\\','').replace(',','').replace("\n", " ").replace("\r", " ");indice+=1
         tipo_traslado       = str(registros_aux[indice]).replace("'",'').replace('"','').replace("´",'').replace('\\','').replace(',','').replace("\n", " ").replace("\r", " ");
         
-        # fecha_inicio_aux      = convertidor_formato_fecha(fecha_inicio)
-        # fecha_vencimiento_aux = convertidor_formato_fecha(fecha_vencimiento)
-        # radicacion_aux  = str(radicacion[3:len(radicacion)])   
-        # if len(radicacion_aux)<5:    
-        #     radicacion_aux = radicacion_aux.zfill(5) 
-        # radicacion_anio = "20"+radicacion[0:2]  
         
-        if ( formato=="1" ):
-            #Formato #1
+        if len(radicacion)==11 and re.findall(r"-", radicacion):
+            if fecha_inicio!="" and fecha_inicio!=None and fecha_vencimiento!="" and fecha_vencimiento!=None:                 
+                fecha_inicio      = convertidor_string_fecha(fecha_inicio)                      
+                fecha_vencimiento = convertidor_string_fecha(fecha_vencimiento) 
+                # fecha_inicio      = convertidor_formato_fecha(fecha_inicio)
+                # fecha_vencimiento = convertidor_formato_fecha(fecha_vencimiento)
+                    
+            radicacion_aux  = str(radicacion[5:len(radicacion)])   
+            if len(radicacion_aux)<5:    
+                radicacion_aux = radicacion_aux.zfill(5) 
+            radicacion_anio = radicacion[0:4]  
+        else:
             fecha_inicio      = convertidor_formato_fecha(fecha_inicio)
             fecha_vencimiento = convertidor_formato_fecha(fecha_vencimiento)
             radicacion_aux        = str(radicacion[3:len(radicacion)])   
             if len(radicacion_aux)<5:    
                 radicacion_aux = radicacion_aux.zfill(5) 
-            radicacion_anio = "20"+radicacion[0:2]     
+            radicacion_anio = "20"+radicacion[0:2]   
+        
+        
+        
+        # if ( formato=="1" ):
+        #     #Formato #1
+        #     fecha_inicio      = convertidor_formato_fecha(fecha_inicio)
+        #     fecha_vencimiento = convertidor_formato_fecha(fecha_vencimiento)
+        #     radicacion_aux        = str(radicacion[3:len(radicacion)])   
+        #     if len(radicacion_aux)<5:    
+        #         radicacion_aux = radicacion_aux.zfill(5) 
+        #     radicacion_anio = "20"+radicacion[0:2]     
                     
-        elif( formato=="2" ):
-            #Formato #2
-            radicacion_aux  = str(radicacion[5:len(radicacion)])   
-            if len(radicacion_aux)<5:    
-                radicacion_aux = radicacion_aux.zfill(5) 
-            radicacion_anio = radicacion[0:4]  
-                 
+        # elif( formato=="2" ):
+        #     #Formato #2
+        #     radicacion_aux  = str(radicacion[5:len(radicacion)])   
+        #     if len(radicacion_aux)<5:    
+        #         radicacion_aux = radicacion_aux.zfill(5) 
+        #     radicacion_anio = radicacion[0:4]  
+            
                 
         if (json_post['tablaRegistros'] == "lupa_texto_fijalista_entidades"):
             
@@ -557,11 +577,11 @@ def insertar_data_fijaciones(data, json_post, formato):
         
         
         # print("Query Insert: " + query )
-        rstInsert = cur.execute(query)
+        cur.execute(query)
         mysql.connection.commit() 
         # print("Respuesta Insert: " + rstInsert )
         
-        if rstInsert:
+        if cur.rowcount>0:
             status=True
             cnt_insertados=cnt_insertados+1
         else:
@@ -573,38 +593,130 @@ def insertar_data_fijaciones(data, json_post, formato):
         "cnt_insertados":cnt_insertados,
         "cnt_no_insertados":cnt_no_insertados,
         "cnt_total_registros":total_registros,
-        # "msg":"Cantidad insertados: " + str(cnt_insertados) + " | Cantidad No insertados: " + str(cnt_no_insertados) + " | Cantidad Total registros encontrados: "+str(total_registros)
         "msg":"Cantidad Total registros encontrados: " + str(total_registros) + "\n - Cant. insertados: " + str(cnt_insertados) + "\n - Cant. No insertados: " + str(cnt_no_insertados) 
     }        
         
     return respuesta
 
+  
+def actualizarImagenesFijacionesScadDigitadas(json_post):
+    cur = mysql.connection.cursor()
+    
+    query = "UPDATE `lupa_imagenes_fija` "
+    query += "SET scad = '11' "
+    query += "WHERE 1 "
+    
+    query += "AND imagenes_departamento     = '"+json_post['dep_imagen']+"' "
+    query += "AND imagenes_municipio        = '"+json_post['mun_imagen']+"' "
+    query += "AND imagenes_entidad          = '"+json_post['ent_imagen']+"' "
+    query += "AND imagenes_especialidad     = '"+json_post['esp_imagen']+"' "
+    query += "AND imagenes_despacho         = '"+json_post['desp_imagen']+"' "
+    
+    query += "AND imagenes_operador         = '"+json_post['ced_usuario']+"' "
+    query += "AND imagenes_fecha_grabacion = CURDATE() "
+    
+    cur.execute(query)
+    mysql.connection.commit()
+    
+    return cur.rowcount  
 
-def validarColumnasTabulaFijacion(path_archivo, json_post, opcion=1):
+  
+def insertarImgenesFijacionRevisado(json_post):
+    cur = mysql.connection.cursor()
+    
+    query = "INSERT ignore INTO lupa_imagenes_revisado "
+    query += "( "
+    query += "id_imagen, "
+    query += "estado, "
+    query += "fecha_revision, "
+    query += "hora_revision, "
+    query += "operador "
+    query += ") "
+    query += "SELECT id, '2', CURDATE(), CURTIME() "
+    query += " ,'"+json_post['ced_usuario']+"' "
+    query += "FROM lupa_imagenes_fija "
+    query += "WHERE 1 "
+    query += "AND imagenes_departamento     = '"+json_post['dep_imagen']+"' "
+    query += "AND imagenes_municipio        = '"+json_post['mun_imagen']+"' "
+    query += "AND imagenes_entidad          = '"+json_post['ent_imagen']+"' "
+    query += "AND imagenes_especialidad     = '"+json_post['esp_imagen']+"' "
+    query += "AND imagenes_despacho         = '"+json_post['desp_imagen']+"' "
+    query += "AND imagenes_operador         = '"+json_post['ced_usuario']+"' "
+    query += "AND imagenes_fecha_grabacion = CURDATE() "
+    
+    cur.execute(query)
+    mysql.connection.commit() 
+    
+    return cur.rowcount
+    
+
+
+def validarColumnasTabulaFijacion(path_archivo, json_post, opcion=1, opc_stream=False, opc_lattice=True):
+    # print( path_archivo )
     if opcion==2:
         columns = ["1", "2", "3", "4", "5", "6", "7", "8"]
-        dataframe  = read_pdf("../../../.."+path_archivo, multiple_tables=True, columns = columns, pages="all", stream=False, lattice=True, output_format="dataframe") 
+        dataframe  = read_pdf("carpeta_pdf/documentos_ent_SIC/"+path_archivo, multiple_tables=True, columns = columns, pages="all", stream=opc_stream, lattice=opc_lattice, output_format="dataframe") 
     else:
-        dataframe  = read_pdf("../../../.."+path_archivo, pages="all", stream=False, lattice=True, output_format="dataframe")   
+        dataframe  = read_pdf("carpeta_pdf/documentos_ent_SIC/"+path_archivo, pages="all", stream=opc_stream, lattice=opc_lattice, output_format="dataframe")   
         
     # formato    = obtieneTipoFormatoFijacion(dataframe) #type<Dataframe>  
     # data       = armar_data_fijaciones(dataframe, formato)    #type<Array>    
     data       = armar_data_fijaciones(dataframe)    #type<Array>    
     print('\nSe empieza a insertar los datos a la Base de datos...')
     print("Tiempo de inicio: {}".format(datetime.datetime.now().strftime("%X")))
-    rstInsert   = insertar_data_fijaciones(data, json_post)
-    # rstInsert   = insertar_data_fijaciones(data, json_post, formato)
-    status  =rstInsert['status']    
-    msg     =rstInsert['msg'] 
-    print('\nTermina inserccion... \n' + msg)
+    rstInsert   = insertar_texto_fijacion(data, json_post)
+    # rstInsert   = insertar_texto_fijacion(data, json_post, formato)
+    # status  =rstInsert['status']    
+    # msg     =rstInsert['msg'] 
+    print('\nTermina inserccion... \n')
     print("Tiempo de fin: {}".format(datetime.datetime.now().strftime("%X")) + "\n")
+    
+    if rstInsert['status']:
+        respuesta = {
+            "status":rstInsert['status'],
+            "statusImgDigitada":True,
+            "statusImgRevisado":True,
+            "msg":rstInsert['msg']
+        }   
+        print('Se inicia la actualizacion de las imagenes de fijaciones a scad 11 (digitadas)...')
+        respActualizarImgFija = actualizarImagenesFijacionesScadDigitadas(json_post)
+        if respActualizarImgFija>0:
+            print('Imagenes de fijacion digitadas...')
+            print('Se inicia la insercion de las imagenes de fijacion a la tabla de revisados...')
+            respInsertImgFijaRevisado = insertarImgenesFijacionRevisado(json_post)
+            
+            if respInsertImgFijaRevisado==0: 
+                respuesta = {
+                    "status":rstInsert['status'],
+                    "statusImgDigitada":True,
+                    "statusImgRevisado":False,
+                    "msg":"Error, no se insertaron las imagenes de fijacion a la tabla de revisado - insertarImgenesFijacionRevisado()"
+                }
+                print( respuesta["msg"] )
+                
+        else:
+            respuesta = {
+                "status":rstInsert['status'],
+                "statusImgDigitada":False,
+                "statusImgRevisado":False,
+                "msg":"Error, no se actualizó ninguna imagen de fijacion - actualizarImagenesFijacionesScadDigitadas()"
+            }
+            print( respuesta["msg"] )
+        
+    else:
+        respuesta = {
+            "status":False,
+            "statusImgDigitada":False,
+            "statusImgRevisado":False,
+            "msg":"No se insertaron todos los registros - insertar_texto_fijacion()"
+        }
+        print( respuesta["msg"] )
+    
+    
     
     return rstInsert
     
-    
-   
-
-
+  
 
 
 
@@ -624,7 +736,7 @@ def page_not_found(error):
 
 
 @app.route('/', methods=['GET'])
-@cross_origin(origin='localhost',headers=['Content- Type','Authorization'])
+@cross_origin(origin='localhost',headers=['Content-Type','Authorization'])
 def ruta():
     respuesta = {
         "Hora":format(datetime.datetime.now().strftime("%X")),
@@ -638,7 +750,7 @@ def ruta():
 
 # Ruta para extraer la tabla del pdf (ESTADOS) - method (POST) - JSON
 @app.route('/extraer/estado', methods=['POST'])
-@cross_origin(origin='localhost',headers=['Content- Type','Authorization'])
+@cross_origin(origin='localhost',headers=['Content-Type','Authorization'])
 def getextraerestado_json():
     if request.method == 'POST':  
         #DATA RECIBIDA
@@ -708,24 +820,57 @@ def getextraerestado_json():
 def getextraerfijacion_json():
     if request.method == 'POST':
         #DATA RECIBIDA
-        path_archivo        = request.json['path_pdf']    
-        try:    
-            resValidaRead = validarColumnasTabulaFijacion(path_archivo, request.json, 1)    
-            status  = resValidaRead["status"]
-            msg     = resValidaRead["msg"]
-        except (FileNotFoundError , tabula.errors.CSVParseError) as error:
-            status    = False 
-            msg       = f'Error interno (0) FIJACION: {error}'
-            
-            
-        if status==False:
-            try:    
-                resValidaRead = validarColumnasTabulaFijacion(path_archivo, request.json, 2)    
+        path_archivo        = request.json['path_pdf']   
+        # print( path_archivo ) 
+        if ( path_archivo ):
+            #VALIDACION No.1
+            try:           
+                resValidaRead = validarColumnasTabulaFijacion(path_archivo, request.json, 1)    
                 status  = resValidaRead["status"]
-                msg     = resValidaRead["msg"]
+                msg     = resValidaRead["msg"] 
             except (FileNotFoundError , tabula.errors.CSVParseError) as error:
                 status    = False 
-                msg       = f'Error interno (1) FIJACION: {error}'
+                msg       = f'Error interno FIJACION (1): {error}'
+                
+                
+            #VALIDACION No.2
+            if status==False: 
+                try:
+                    resValidaRead = validarColumnasTabulaFijacion(path_archivo, request.json, 2)   
+                    status  = resValidaRead["status"]
+                    msg     = resValidaRead["msg"]  
+                except (FileNotFoundError , tabula.errors.CSVParseError) as error:
+                    status    = False 
+                    msg       = f'Error interno FIJACION (2): {error}'
+                    
+                    
+                #VALIDACION No.3
+                if status==False: 
+                    opc_stream =True
+                    opc_lattice=False
+                    try:
+                        resValidaRead = validarColumnasTabulaFijacion(path_archivo, request.json, 1, opc_stream, opc_lattice)   
+                        status  = resValidaRead["status"]
+                        msg     = resValidaRead["msg"]  
+                    except (FileNotFoundError , tabula.errors.CSVParseError) as error:
+                        status    = False 
+                        msg       = f'Error interno FIJACION (3): {error}'
+                       
+                        
+                    #VALIDACION No.4
+                    if status==False: 
+                        try:
+                            resValidaRead = validarColumnasTabulaFijacion(path_archivo, request.json, 2, opc_stream, opc_lattice)   
+                            status  = resValidaRead["status"]
+                            msg     = resValidaRead["msg"]  
+                        except (FileNotFoundError , tabula.errors.CSVParseError) as error:
+                            status    = False 
+                            msg       = f'Error interno FIJACION (4): {error}'
+     
+        else:
+            status    = False 
+            msg       = 'Error de parametros, la API no recibió el archivo .PDF'
+              
     else:
         status    = False 
         msg       = 'Error, el request es invalido'
