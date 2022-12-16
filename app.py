@@ -406,8 +406,12 @@ def armar_data_fijaciones(dataframe):
     
     data=[]    
     for key in df_arr:    
-        if isfloat(key[0]) and isint(key[0]):              
+        # print( key[0] )
+        # print( type( key[0] ) )
+        if (isfloat(key[0]) or isint(key[0])) and str(key[0])!="nan":              
             data.append(key)   
+            
+    # print( data )
             
     return data
 
@@ -436,6 +440,14 @@ def insertar_texto_fijacion(data, json_post):
         tipo_traslado       = str(registros_aux[indice]).replace("'",'').replace('"','').replace("´",'').replace('\\','').replace(',','').replace("\n", " ").replace("\r", " ");
         
         
+        # print( 
+        #         radicacion ,
+        #         fecha_inicio ,
+        #         fecha_vencimiento 
+        #     )
+        # continue
+        
+        
         if len(radicacion)==11 or re.findall(r"([0-9][0-9][0-9][0-9]-)", radicacion):
             if fecha_inicio!="" and fecha_inicio!=None and fecha_vencimiento!="" and fecha_vencimiento!=None:                 
                 fecha_inicio      = convertidor_string_fecha(fecha_inicio)                      
@@ -445,7 +457,21 @@ def insertar_texto_fijacion(data, json_post):
             if len(radicacion_aux)<5:    
                 radicacion_aux = radicacion_aux.zfill(5) 
             radicacion_anio = radicacion[0:4]  
+            
+            # print( "1 --------------------------------------" )
+            # print( 
+            #     radicacion_anio ,
+            #     radicacion_aux ,
+            #     fecha_inicio ,
+            #     fecha_vencimiento ,
+            #     demandante ,
+            #     demandado ,
+            #     tipo_traslado
+            # )
+            
         else:
+            # print( "entra en el 2" )
+            
             fecha_inicio      = convertidor_formato_fecha(fecha_inicio)
             fecha_vencimiento = convertidor_formato_fecha(fecha_vencimiento)
             radicacion_aux        = str(radicacion[3:len(radicacion)])   
@@ -453,7 +479,8 @@ def insertar_texto_fijacion(data, json_post):
                 radicacion_aux = radicacion_aux.zfill(5) 
             radicacion_anio = "20"+radicacion[0:2]   
                     
-                
+        continue
+        
         if (json_post['tablaRegistros'] == "lupa_texto_fijalista_entidades"):
             
             query = "INSERT IGNORE INTO lupa_texto_fijalista_entidades ( "            
@@ -503,6 +530,7 @@ def insertar_texto_fijacion(data, json_post):
             query += ")";
             
         elif (json_post['tablaRegistros']=="lupa_texto_fijalista"):  
+                        
             proceso = ""                                                   
             proceso = json_post["dep_imagen"]+json_post["mun_imagen"]+ json_post["ent_imagen"]+json_post["esp_imagen"]+json_post["desp_imagen"]+radicacion_anio+radicacion_aux
                       
@@ -550,6 +578,8 @@ def insertar_texto_fijacion(data, json_post):
             query += " , CURTIME() "
             query += " , '" + json_post['ced_usuario'] + "' "            
             query += ")";
+            
+            
 
         
         cur.execute(query)
@@ -628,9 +658,11 @@ def validarColumnasTabulaFijacion(path_archivo, json_post, opcion=1, opc_stream=
     
     if opcion==2:
         columns = ["1", "2", "3", "4", "5", "6", "7", "8"]
-        dataframe  = read_pdf("../../../.."+path_archivo, multiple_tables=True, columns = columns, pages="all", stream=opc_stream, lattice=opc_lattice, output_format="dataframe") 
+        # dataframe  = read_pdf("../../../.."+path_archivo, multiple_tables=True, columns = columns, pages="all", stream=opc_stream, lattice=opc_lattice, output_format="dataframe") 
+        dataframe  = read_pdf(path_archivo, multiple_tables=True, columns = columns, pages="all", stream=opc_stream, lattice=opc_lattice, output_format="dataframe") 
     else:
-        dataframe  = read_pdf("../../../.."+path_archivo, pages="all", stream=opc_stream, lattice=opc_lattice, output_format="dataframe")   
+        # dataframe  = read_pdf("../../../.."+path_archivo, pages="all", stream=opc_stream, lattice=opc_lattice, output_format="dataframe")   
+        dataframe  = read_pdf(path_archivo, pages="all", stream=opc_stream, lattice=opc_lattice, output_format="dataframe")   
           
     data       = armar_data_fijaciones(dataframe)    #type<Array>    
     print('\nSe empieza a insertar los datos a la Base de datos...')
@@ -695,7 +727,7 @@ def validarColumnasTabulaFijacion(path_archivo, json_post, opcion=1, opc_stream=
 #--------------------------------------------------------------
 #------------ PARA LOS DOCUMENTOS DE ESTADO - SANTA MARTA ------------
 #--------------------------------------------------------------
-def abrirPDF(docPdf, id_despacho):
+def abrirPDF(docPdf, id_despacho, usuario):
     
     try:
         respuesta = {} 
@@ -778,7 +810,7 @@ def abrirPDF(docPdf, id_despacho):
                                   
             # Lista que contiene Diccionarios radicado 23 digitos relacionado con su enlace: << mylistDicc >>
             # print( mylistDicc )
-            respuesta = cruzarRadicadosConLupaCpj(mylistDicc, id_despacho)
+            respuesta = cruzarRadicadosConLupaCpj(mylistDicc, id_despacho, usuario)
             
         else:
             msg       = "se encontraron \n " 
@@ -794,6 +826,7 @@ def abrirPDF(docPdf, id_despacho):
             "status":False,
             "msg": f'Error interno EXTRACTOR RAD-ENLACES SANTA MARTA (1): {error}'
         } 
+        
          
     return respuesta
 
@@ -871,9 +904,7 @@ def extraerEnlaces(PDF):
     return mylistEnlace
 
 
-def cruzarRadicadosConLupaCpj(mylistDiccionarioRadEnlaces, id_despacho):
-    status    = True 
-    msg       = "" 
+def cruzarRadicadosConLupaCpj(mylistDiccionarioRadEnlaces, id_despacho, usuario):
     
     cntCruzan=0
     cntNoCruzan=0
@@ -890,33 +921,65 @@ def cruzarRadicadosConLupaCpj(mylistDiccionarioRadEnlaces, id_despacho):
                 mylistRadCruzan.append(dicc)
                 
                 respuestaTieneAuto = consultarTieneAuto(dicc, id_despacho)
+                
+                # Se le agrega mas valores al diccionario
+                dicc['id_despacho']         = id_despacho
+                dicc['usuario']             = str(usuario)
+                dicc['documento_origen']    = "10"
+                
+                cnt_autos_insertados = 0; cnt_autos_faltantes = 0
                 if respuestaTieneAuto["rows"]>0:
                     # El radicado(proceso) tiene auto
                     for auto in respuestaTieneAuto["data"]:
-                        # if auto['imagenes']=="HRJ.jpg" and auto['grabacion_mixta']=="1": # Si el auto es grabado por el robot, actualizo las imagenes
-                        wget_insertar_actualizar_procesos_cruzados(id_despacho, dicc, auto['id'], accion="actualizar")
+                        if auto['imagenes']=="HRJ.jpg" and auto['grabacion_mixta']=="1": # Si el auto es grabado por el robot, actualizo las imagenes
+                            # Se le agrega mas valores al diccionario
+                            dicc['id_auto'] = auto['id']
+                            respuesta_wget = wget_insertar_actualizar_procesos_cruzados(dicc, accion="actualizar")
+                            
+                            cnt_autos_insertados = cnt_autos_insertados + respuesta_wget['cnt_autos_insertados']
+                            cnt_autos_faltantes  = cnt_autos_faltantes + respuesta_wget['cnt_autos_faltantes']
                 else:
-                    # El radicado NO tiene autos
-                    wget_insertar_actualizar_procesos_cruzados(id_despacho, dicc)
+                    # El radicado(proceso) NO tiene autos
+                    respuesta_wget = wget_insertar_actualizar_procesos_cruzados(dicc)
+                    
+                    cnt_autos_insertados = cnt_autos_insertados + respuesta_wget['cnt_autos_insertados']
+                    cnt_autos_faltantes  = cnt_autos_faltantes + respuesta_wget['cnt_autos_faltantes']
                     
             else: 
                 # radicados que no cruzan
                 cntNoCruzan=cntNoCruzan+1
                 mylistRadNoCruzan.append(dicc)
+                
+            
+            msg = 'Autos cruzaron: '+ len(mylistRadCruzan) +"\n"
+            msg += 'Autos que NO cruzaron: '+ len(mylistRadNoCruzan) +"\n\n"
+            msg += 'Autos subidos: '+(cnt_autos_insertados+0)+'/'+((cnt_autos_insertados+0) + (cnt_autos_faltantes+0))+"\n"
+            if (cnt_autos_faltantes>0) :
+                msg += 'Autos faltantes: '+(cnt_autos_faltantes)+"\n"
+                msg += 'Motivo: Error interno de la rama, espere unos minutos y vuelva a intentarlo'
+            
+            if ( (cnt_autos_insertados+0)==0  and ( (cnt_autos_insertados+0) + (cnt_autos_faltantes+0) )==0 ):
+                msg += 'No se encontraron autos que cruzaran'
+            
+            respuesta = {
+                'status' : True, 
+                'msg'    : msg, 
+                'cnt_insertados'    : (cnt_autos_insertados+0), 
+                'cnt_faltantes'     : (cnt_autos_faltantes+0),
+                'cnt_cruzaron'      : (len(mylistRadCruzan)+0), 
+                'cnt_no_cruzaron'   : (len(mylistRadNoCruzan)+0)
+            }
     else:
-        status    = False 
-        msg       = "No se encontraron radicados de 23 digitos (2)" 
+        respuesta = {
+            "status" : False,
+            "msg" : "No se encontraron radicados de 23 digitos (2)" 
+        }
         
     # print( "------------------ RADICADOS QUE CRUZAN ------------------" )
     # print( mylistRadCruzan )
     # print( "------------------ RADICADOS QUE NO CRUZAN ------------------" )
     # print( mylistRadNoCruzan )
-       
-    respuesta = {
-        "status" : status,
-        "msg" : msg
-    }
-        
+    
     return respuesta
                 
       
@@ -972,32 +1035,160 @@ def consultarTieneAuto(dicc, id_despacho):
     return respuesta  
 
 
-def wget_insertar_actualizar_procesos_cruzados(id_despacho, dicc, id_auto="", accion="insertar"):
+def wget_insertar_actualizar_procesos_cruzados(dicc, accion="insertar"):
     
-    carpeta = datetime.date.today().year
-    nombreArchivo = "APA_"+str(dicc['rad']).zfill(5)+"_"+str(dicc['anio'])+str(dicc['rad'])+"_"+str(dicc['desp'])+"_"+str(time())+".pdf"
-    carpetaDestino = "/docimagenes/" +str(carpeta)+ "/"
-    
-    # print( "-----------------------------------------------------------------------------------------" )
-    # comando = "wget --no-check-certificate -O " + nombreArchivo + " " + dicc['enlace']
-    comando = "wget --no-check-certificate -O " + carpetaDestino + nombreArchivo + " " + dicc['enlace']
-    correrComando(comando, verbose = True)
-    
-  
+    try:
+        
+        carpeta = datetime.date.today().year
+        nombreArchivo = "APA_"+str(dicc['rad']).zfill(5)+"_"+str(dicc['anio'])+str(dicc['rad'])+"_"+str(dicc['desp'])+"_"+str(time())+".pdf"
+        carpetaDestino = "/docimagenes/" +str(carpeta)+ "/"
+        
+        print( "----> Wget ---" )
+        respuesta_wget = subprocess.run(["wget", "--no-check-certificate", "-O", carpetaDestino+nombreArchivo, str(dicc['enlace'])])
+        
+        cnt_autos_faltantes=0; cnt_autos_insertados=0
+        if respuesta_wget.returncode==0:
+            dicc['imagen'] = nombreArchivo
+            if accion=="actualizar":
+                respuestaActAuto = actualizarAuto(dicc)
+                if respuestaActAuto['status']:
+                    cnt_autos_insertados+=1
+                    
+            elif accion=="insertar":
+                respuestaInsAuto = insertarAuto(dicc)
+                if respuestaInsAuto['status']:
+                    cnt_autos_insertados+=1
+                    
+        else:
+            cnt_autos_faltantes+=1
+            
+        respuesta = {
+            "cnt_autos_faltantes": cnt_autos_faltantes,
+            "cnt_autos_insertados": cnt_autos_insertados,
+        } 
+        
+    except Exception as e:
+        respuesta = {
+            "status":False,
+            "msg": ("ERROR wget_insertar_actualizar_procesos_cruzados():", e)
+        } 
+    return respuesta
 
-def correrComando(cmd, verbose = False, *args, **kwargs):
+
     
-    process = subprocess.Popen(
-        cmd,
-        stdout = subprocess.PIPE, 
-        stderr = subprocess.PIPE,
-        text = True, 
-        shell = True
-    )
-    std_out, std_err = process.communicate()
-    if verbose:
-        print(std_out.strip(), std_err)
-    pass
+def actualizarAuto(diccData):
+    cur = mysql.connection.cursor()
+    
+    query = " UPDATE `lupa_imagenes_cpj_cc` "
+    query += " SET imagenes             = CONCAT(imagenes,'|','"+diccData['imagen']+"')  "
+    query += " fecha_grabacion          = CURDATE(),   "
+    query += " operador                 = '"+diccData['usuario']+"',   "
+    query += " hora_grabacion           = CURTIME(),   "
+    query += " estado                   = '0',   "
+    query += " motivo_grabacion         = '0',   "
+    query += " disponible               = '0',   "
+    query += " grabacion_mixta          = '0',   "
+    query += " nro_imagenes             = nro_imagenes + (1),   "
+    query += " dispositivo              = '',   "
+    query += " fecha_documento          = CURDATE() ,   "
+    query += " WHERE  1 "
+    query += " AND id = "+diccData['id_auto']+" "
+    
+    cur.execute(query)
+    mysql.connection.commit()
+    
+    if cur.rowcount > 0:
+        respuesta = {
+            "status":True,
+            "msg":"Auto actualizado con exito."
+        }
+        
+        # Actualizar la cantidad de archivos
+        # query2 = " UPDATE `lupa_imagenes_cpj_cc` "
+        # query2 += " SET = ((length(imagenes)-length(replace(imagenes,'|','')))/1)+1  "
+        # query2 += " WHERE  1 "
+        # query2 += " AND id = "+diccData['id_auto']+" "
+            
+        # cur.execute(query2)
+        # mysql.connection.commit()
+        
+        # if cur.rowcount == 0:
+        #     respuesta = {
+        #         "status":False,
+        #         "msg":"Ocurrió un error al actualizar actualizarAuto() (2)"
+        #     }
+    else:
+        respuesta = {
+            "status":False,
+            "msg":"Ocurrió un error al actualizar actualizarAuto() (1)"
+        }
+    
+    return respuesta
+
+
+
+
+
+def insertarAuto(diccData):
+    cur = mysql.connection.cursor()
+    
+    query = " INSERT INTO lupa_imagenes_cpj_cc  "
+    query += " ( id_despacho, "
+    query += " rad,   "
+    query += " anio,  "
+    query += " imagenes,   "
+    query += " nro_imagenes,   "
+    query += " fecha_grabacion,   "
+    query += " operador,   "
+    query += " estado, "
+    query += " hora_grabacion,   "
+    query += " disponible,   "
+    query += " motivo_grabacion,   "
+    query += " cliente_ugpp,   "
+    query += " dispositivo,   "
+    query += " log_registro,  "
+    query += " texto,   "
+    query += " fecha_documento,    "
+    # query += " extra,   "
+    query += " grabacion_extractor_enlaces )  "
+    query += " VALUES (  "
+    query += " '"+diccData['id_despacho']+"', "
+    query += " '"+str(diccData['rad']).zfill(5)+"', "
+    query += " '"+diccData['anio']+"', "
+    query += " '"+diccData['imagen']+"', "
+    query += " '1', "
+    query += " CURDATE(), "
+    query += " '"+diccData['usuario']+"', "
+    query += " '1', "
+    query += " CURDATE(), "
+    query += " '0', "
+    query += " '0', "
+    query += " '0', "
+    query += " '', "
+    query += " '[]', "
+    query += " '', "
+    query += " CURDATE(), "
+    # query += " '', "
+    query += " '1' "
+    
+    cur.execute(query)
+    mysql.connection.commit() 
+    
+    if cur.rowcount > 0:
+        respuesta = {
+            "status":True,
+            "msg":"Auto insertado con exito."
+        }
+    else:
+        respuesta = {
+            "status":False,
+            "msg":"Ocurrió un error al insertar insertarAuto() (1)"
+        }
+        
+    return respuesta
+
+
+
 
 
 
@@ -1121,7 +1312,8 @@ def getextraerfijacion_json():
         if ( path_archivo ):
             if (entidad=="95" and especialidad=="01"):             
                 #VALIDACION No.1
-                try:           
+                try:  
+                    print( "----->1" )         
                     resValidaRead = validarColumnasTabulaFijacion(path_archivo, request.json, 1)    
                     status  = resValidaRead["status"]
                     msg     = resValidaRead["msg"] 
@@ -1133,6 +1325,8 @@ def getextraerfijacion_json():
                 #VALIDACION No.2
                 if status==False: 
                     try:
+                        print( "----->2" )         
+                        
                         resValidaRead = validarColumnasTabulaFijacion(path_archivo, request.json, 2)   
                         status  = resValidaRead["status"]
                         msg     = resValidaRead["msg"]  
@@ -1146,6 +1340,7 @@ def getextraerfijacion_json():
                         opc_stream =True
                         opc_lattice=False
                         try:
+                            print( "----->3" )         
                             resValidaRead = validarColumnasTabulaFijacion(path_archivo, request.json, 1, opc_stream, opc_lattice)   
                             status  = resValidaRead["status"]
                             msg     = resValidaRead["msg"]  
@@ -1157,6 +1352,8 @@ def getextraerfijacion_json():
                         #VALIDACION No.4
                         if status==False: 
                             try:
+                                print( "----->4" )         
+                                
                                 resValidaRead = validarColumnasTabulaFijacion(path_archivo, request.json, 2, opc_stream, opc_lattice)   
                                 status  = resValidaRead["status"]
                                 msg     = resValidaRead["msg"]  
@@ -1196,9 +1393,10 @@ def getExtraerRadEnlaceEstado_json():
         #DATA RECIBIDA
         path_archivo        = request.json['path_pdf']  
         id_despacho         = request.json['id_despacho']  
+        usuario             = request.json['usuario']  
           
-        if ( path_archivo and id_despacho):
-            respuesta = abrirPDF(path_archivo, id_despacho)
+        if ( path_archivo and id_despacho and usuario):
+            respuesta = abrirPDF(path_archivo, id_despacho, usuario)
             
         else:
             respuesta = {
